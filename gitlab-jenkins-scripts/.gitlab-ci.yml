@@ -1,0 +1,84 @@
+cache:
+  paths:
+  - target/
+  - .m2/repository
+
+stages:
+- check
+- build
+- test
+- quality
+- sonar
+- deploy
+
+#before_script:
+#- export M2_HOME=/apache-maven-3.6.0
+#- export M2=$M2_HOME/bin
+#- export PATH=$M2:$PATH
+
+git head check:
+  stage: check
+  only:
+  - triggers
+  tags:
+  - myjob
+  script:
+  - chmod +x gitrevleftcheck.sh
+  - ./gitrevleftcheck.sh $CI_COMMIT_REF_NAME
+
+package:
+  stage: build
+  only:
+  - master
+  - triggers
+  tags:
+  - myjob
+  script:
+  - mvn -B -Dmaven.test.skip=true clean package
+  artifacts:
+    paths:
+    - target/
+
+unit test:
+  stage: test
+  only:
+  - master
+  - triggers
+  tags:
+  - myjob
+  dependencies:
+  - package
+  script:
+  - mvn -Dmaven.test.failure.ignore=false test
+  artifacts:
+    paths:
+    - target/
+
+pit test:
+  stage: quality
+  only:
+  - master
+  - triggers
+  tags:
+  - myjob
+  dependencies:
+  - unit test
+  script:
+  - mvn org.pitest:pitest-maven:mutationCoverage -DmutationThreshold=75
+  artifacts:
+    paths:
+    - target/
+
+sonar test:
+  stage: quality
+  only:
+  - master
+  - triggers
+  tags:
+  - myjob
+  dependencies:
+  - unit test
+  script:
+  - mvn -Dmaven.test.skip=true --batch-mode verify sonar:sonar -Dsonar.host.url=http://192.168.0.45:9000 -Dsonar.login=faae8482283a0981c2687ee47b41624e404bb1ee -Dsonar.analysis.mode=preview -Dsonar.gitlab.commit_sha=$CI_COMMIT_SHA -Dsonar.gitlab.ref_name=$CI_COMMIT_REF_NAME -Dsonar.gitlab.project_id=$CI_PROJECT_ID
+#  - chmod +x qualitygate.sh
+#  - ./qualitygate.sh

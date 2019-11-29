@@ -1,0 +1,37 @@
+pipeline {
+    agent any
+    tools {
+        maven 'apache-maven-3.6.0'
+    }
+    stages {
+        stage('Build') {
+            steps {
+                sh 'mvn -B -Dmaven.test.skip=true clean package'
+            }
+        }
+        stage('Sonar test') {
+            steps {
+                withSonarQubeEnv('SonarQubeServer') {
+                    sh 'mvn sonar:sonar'
+                }
+            }
+        }
+        stage('Quality Gate') {
+            steps {
+                timeout(time: 1, unit: 'HOURS') {
+                    waitForQualityGate abortPipeline: true
+                }
+            }
+        }
+        stage('Unit Test') {
+            steps {
+                sh 'mvn -Dmaven.test.failure.ignore=false test'
+            }
+        }
+        stage('PIT Test') {
+            steps {
+                sh 'mvn org.pitest:pitest-maven:mutationCoverage -DmutationThreshold=75'
+            }
+        }
+    }
+}
